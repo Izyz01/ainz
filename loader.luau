@@ -1,6 +1,10 @@
 -- Public entry point. GitHub credentials stay on the release host.
 local HOST='https://ainz-release-host.dfcis-suggestion-box.workers.dev'
 local env=getgenv()
+local Players=game:GetService('Players')
+local player=Players.LocalPlayer
+while not player do Players:GetPropertyChangedSignal('LocalPlayer'):Wait();player=Players.LocalPlayer end
+local robloxUserId=tostring(player.UserId)
 assert(not HOST:find('YOUR%-WORKER'),'AINZ release host has not been configured.')
 assert(not env.AINZOnlineLoaderBusy,'AINZ is already downloading.')
 local send=request or http_request or (type(syn)=='table' and syn.request)
@@ -11,11 +15,13 @@ end
 local asset=getcustomasset or getsynasset
 assert(type(asset)=='function','AINZ requires custom image asset support.')
 local function fetch(path,key)
- local ok,response=pcall(send,{Url=HOST..path,Method='GET',Headers=key and {Authorization='Bearer '..key} or {}})
+ local ok,response=pcall(send,{Url=HOST..path,Method='GET',Headers=key and {Authorization='Bearer '..key,['X-Roblox-UserId']=robloxUserId} or {}})
  if not ok or type(response)~='table' then return nil,'Cannot connect to AINZ. Try again.' end
  local status=tonumber(response.StatusCode or response.Status)
  if status==401 then return nil,'Invalid or revoked key.' end
  if status==403 then return nil,'This access key has expired.' end
+ if status==409 then return nil,'This key is already linked to another Roblox account.' end
+ if status==429 then return nil,'Too many requests. Wait one minute and try again.' end
  if status~=200 or type(response.Body)~='string' or #response.Body==0 then return nil,'AINZ download unavailable. Try again later.' end
  return response.Body
 end
@@ -43,7 +49,7 @@ local function requestKey()
   return make('TextLabel',panel,{Text=text,BackgroundTransparency=1,Position=UDim2.fromOffset(22,y),Size=UDim2.new(1,-44,0,height),Font=Enum.Font.BuilderSans,TextSize=14,TextColor3=Color3.fromRGB(230,220,245),TextWrapped=true})
  end
  label('All I Need Z',112,24).Font=Enum.Font.BuilderSansBold
- label('Enter the access key you received',140,24)
+ label('Redeem for '..player.Name..' · '..robloxUserId,140,24)
  local box=make('TextBox',panel,{Text='',PlaceholderText='Access key',ClearTextOnFocus=false,MultiLine=false,Position=UDim2.fromOffset(22,176),Size=UDim2.new(1,-44,0,38),BackgroundColor3=Color3.fromRGB(39,32,51),TextColor3=Color3.new(1,1,1),PlaceholderColor3=Color3.fromRGB(164,148,181),Font=Enum.Font.BuilderSans,TextSize=14,BorderSizePixel=0})
  make('UICorner',box,{CornerRadius=UDim.new(0,7)})
  local status=label('',218,38)

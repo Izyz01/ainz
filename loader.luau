@@ -15,6 +15,7 @@ local function fetch(path,key)
  if not ok or type(response)~='table' then return nil,'Cannot connect to AINZ. Try again.' end
  local status=tonumber(response.StatusCode or response.Status)
  if status==401 then return nil,'Invalid or revoked key.' end
+ if status==403 then return nil,'This access key has expired.' end
  if status~=200 or type(response.Body)~='string' or #response.Body==0 then return nil,'AINZ download unavailable. Try again later.' end
  return response.Body
 end

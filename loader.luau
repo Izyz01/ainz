@@ -5,6 +5,8 @@ local Players=game:GetService('Players')
 local player=Players.LocalPlayer
 while not player do Players:GetPropertyChangedSignal('LocalPlayer'):Wait();player=Players.LocalPlayer end
 local robloxUserId=tostring(player.UserId)
+local Http=game:GetService('HttpService')
+local keyFile='AINZ-access-key-'..robloxUserId..'.json'
 assert(not HOST:find('YOUR%-WORKER'),'AINZ release host has not been configured.')
 assert(not env.AINZOnlineLoaderBusy,'AINZ is already downloading.')
 local send=request or http_request or (type(syn)=='table' and syn.request)
@@ -18,10 +20,10 @@ local function fetch(path,key)
  local ok,response=pcall(send,{Url=HOST..path,Method='GET',Headers=key and {Authorization='Bearer '..key,['X-Roblox-UserId']=robloxUserId} or {}})
  if not ok or type(response)~='table' then return nil,'Cannot connect to AINZ. Try again.' end
  local status=tonumber(response.StatusCode or response.Status)
- if status==401 then return nil,'Invalid or revoked key.' end
- if status==403 then return nil,'This access key has expired.' end
- if status==409 then return nil,'This key is already linked to another Roblox account.' end
- if status==429 then return nil,'Too many requests. Wait one minute and try again.' end
+ if status==401 then return nil,'Invalid or revoked key.',status end
+ if status==403 then return nil,'This access key has expired.',status end
+ if status==409 then return nil,'This key is already linked to another Roblox account.',status end
+ if status==429 then return nil,'Too many requests. Wait one minute and try again.',status end
  if status~=200 or type(response.Body)~='string' or #response.Body==0 then return nil,'AINZ download unavailable. Try again later.' end
  return response.Body
 end
@@ -79,13 +81,28 @@ local function requestKey()
 end
 env.AINZOnlineLoaderBusy=true
 local ok,result=xpcall(function()
- local key=env.AINZKey
+ local key=(env.AINZKeyUserId==nil or env.AINZKeyUserId==robloxUserId)and env.AINZKey or nil
+ if not key then
+  local loaded,saved=pcall(function()return Http:JSONDecode(readfile(keyFile))end)
+  if loaded and type(saved)=='table'and saved.userId==robloxUserId and saved.host==HOST
+   and type(saved.key)=='string'and #saved.key>=32 and #saved.key<=128 and not saved.key:find('[^%w_-]')then key=saved.key end
+ end
  local bundle
  if type(key)=='string' and #key>0 then
-  local message;bundle,message=fetch('/files/AINZ-all-games.luau',key)
-  if not bundle then env.AINZKey=nil;warn(message);key=nil end
+  local message,status;bundle,message,status=fetch('/files/AINZ-all-games.luau',key)
+  if not bundle then
+   if status==401 or status==403 or status==409 then
+    env.AINZKey=nil;env.AINZKeyUserId=nil
+    local removed=type(delfile)=='function'and pcall(delfile,keyFile)
+    if not removed then pcall(writefile,keyFile,'{}')end
+    warn(message);key=nil
+   else error(message,0)end -- Keep remembered keys during outages or throttling.
+  end
  end
  if not bundle then key,bundle=requestKey()end
+ env.AINZKey=key;env.AINZKeyUserId=robloxUserId
+ local remembered=pcall(writefile,keyFile,Http:JSONEncode({version=1,userId=robloxUserId,host=HOST,key=key}))
+ if not remembered then warn('AINZ could not remember this key. You may need to enter it next time.')end
  local scripts={{'AINZ-all-games.luau',bundle}}
  for _,name in ipairs({'AINZ-launcher.luau','AINZ-flee-the-facility.luau'})do
   local body,message=fetch('/files/'..name,key);assert(body,message);scripts[#scripts+1]={name,body}
@@ -97,7 +114,7 @@ local ok,result=xpcall(function()
  end
  if not isfolder('ui-icons')then makefolder('ui-icons')end
  for _,group in ipairs({assets,scripts})do for _,entry in ipairs(group)do writefile(entry[1],entry[2]);assert(readfile(entry[1])==entry[2],'Could not save '..entry[1])end end
- env.AINZIconAsset=nil;env.AINZKey=key -- Session memory only; never save the access key to disk.
+ env.AINZIconAsset=nil
  return assert(loadstring(readfile('AINZ-launcher.luau'),'@AINZ-launcher.luau'))()
 end,debug.traceback)
 if dialog then dialog:Destroy()end

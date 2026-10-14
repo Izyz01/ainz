@@ -10,7 +10,7 @@ Enter the access key you received from the owner. The loader downloads the AINZ 
 
 Required executor support: HTTP requests with headers, file reading/writing, folders, loadstring, custom image assets, and the existing AINZ runtime APIs. Madium MCP is not required to download the release.
 
-Only the loader is public. Release payloads are hosted privately and served after key validation. Keys are retained in session memory, not written to a preferences file. Do not share your key. Revocation blocks future downloads; it cannot remove previously downloaded copies.
+Only the loader is public. Release payloads are hosted privately and served after key validation. The loader remembers a redeemed key locally in `AINZ-access-key-<UserId>.json`, scoped to that Roblox account and host. It revalidates with the server on each online launch. Another account does not load your saved key. Invalid, expired, or mismatched keys are cleared; outages or throttling do not erase them. The local key file is readable by the executor. Do not share your key. Revocation blocks future downloads; it cannot remove previously downloaded copies.
 
 Each key can be redeemed by one Roblox account. It binds to the first UserId reported by the loader; that account can reuse it until expiry or revocation. Another account receives an already-redeemed message. This automatic binding prevents casual sharing but is not verified Roblox ownership; modified clients can spoof a UserId.
 
